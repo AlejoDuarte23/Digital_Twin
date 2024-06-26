@@ -10,6 +10,11 @@ CORS(app)  # Enable CORS for all routes
 def index():
     return render_template('index.html')
 
+
+@app.route('/3d')
+def model3d():
+    return render_template('3dmodel.html')
+
 @app.route('/gps')
 def gps():
     return render_template('gps.html')
