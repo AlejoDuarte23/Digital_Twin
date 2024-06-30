@@ -45,22 +45,45 @@ def generate_geojson(df):
     
     return gdf
 
-# Load data
-_df = pd.read_excel("/Users/alejandroduarte/Documents/digital_twin_engine/preprocesing/GPS Setup 2.3-4.xlsx",sheet_name="20230422-20230508")
 
-# Remove outliers
-df = remove_outliers(_df)
-df['Datetime'] = pd.to_datetime(df['Timestamp'].astype(str))
+def main(excel_file_path:str, sheet_name:str, geojson_file_path:str) -> dict:
+    # Load data
+    _df = pd.read_excel(excel_file_path,sheet_name=sheet_name)
 
-# Remove duplicate Datetime values
-df = df.drop_duplicates(subset=['Datetime'])
+    # Remove outliers
+    df = remove_outliers(_df)
+    df['Datetime'] = pd.to_datetime(df['Timestamp'].astype(str))
 
-# Generate GeoJSON DataFrame
-gdf = generate_geojson(df=df)
+    # Remove duplicate Datetime values
+    df = df.drop_duplicates(subset=['Datetime'])
 
-# Drop unnecessary columns
-gdf = gdf.drop(labels=['ID', 'Fecha', 'EquipmentId', 'Timestamp',
-                    'Heading', 'Direction', 'FieldStatTypeCode'], axis=1)
-gdf['Datetime'] = gdf['Datetime'].astype(str)
-# Ensure the index is unique
-timeseries_dict = gdf.set_index('Datetime').to_file("/Users/alejandroduarte/Documents/digital_twin_engine/gps_st_2_3_4_2.geojson",driver = 'GeoJson')
+    # Generate GeoJSON DataFrame
+    gdf = generate_geojson(df=df)
+
+    # Drop unnecessary columns
+    #gdf = gdf.drop(labels=['ID', 'Fecha', 'EquipmentId', 'Timestamp',
+    #                   'Heading', 'Direction', 'FieldStatTypeCode'], axis=1)
+    gdf = gdf.drop(labels=['Id','EquipmentId', 'Timestamp',
+                        'Heading', 'Direction', 'FieldStatTypeCode'], axis=1)
+    gdf['Datetime'] = gdf['Datetime'].astype(str)
+    # Ensure the index is unique
+    timeseries_dict = gdf.set_index('Datetime').to_file(geojson_file_path,driver = 'GeoJson')
+
+    return timeseries_dict
+
+
+if __name__ == '__main__':
+    excel_file_path = "/Users/alejandroduarte/Documents/digital_twin_engine/preprocesing/Datos GPS equipo 022-429 - Mayo-22 hasta Abril-5 2023.xlsx"
+    sheet_name1 = "20230323"
+    geojson_file_path1 = "/Users/alejandroduarte/Documents/digital_twin_engine/preprocesing/gps_03_23.geojson"
+
+    sheet_name2 = "20230402"
+    geojson_file_path2 = "/Users/alejandroduarte/Documents/digital_twin_engine/preprocesing/gps_04_02.geojson"
+
+    sheet_name3 = "20230325"
+    geojson_file_path3 = "/Users/alejandroduarte/Documents/digital_twin_engine/preprocesing/gps_03_25.geojson"
+
+    data_list = [(sheet_name1, geojson_file_path1), (sheet_name2, geojson_file_path2), (sheet_name3, geojson_file_path3)]       
+
+    for sheet_name, geojson_file_path in data_list:
+        main(excel_file_path, sheet_name, geojson_file_path)

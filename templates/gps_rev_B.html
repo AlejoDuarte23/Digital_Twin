@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Coordinates Stream</title>
+    <style>
+        #coordinates-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #coordinates-list li {
+            margin: 5px 0;
+        }
+    </style>
+    <script>
+        function startEventSource() {
+            const eventSource = new EventSource("/stream-cords");
+            eventSource.onmessage = function(event) {
+                const coords = JSON.parse(event.data);
+                
+
+
+                const coordItem = document.createElement("li");
+                coordItem.innerText = `Latitude: ${coords[1]}, Longitude: ${coords[0]}`;
+                document.getElementById("coordinates-list").appendChild(coordItem);
+            };
+        }
+    </script>
+</head>
+<body onload="startEventSource()">
+    <h1>Real-time Coordinates</h1>
+    <ul id="coordinates-list">
+        <li>Waiting for coordinates...</li>
+    </ul>
+</body>
+</html>

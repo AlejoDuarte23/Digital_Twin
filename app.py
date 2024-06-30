@@ -33,6 +33,17 @@ def gps_data():
         data2 = json.load(file)
     return jsonify(data2)
  
+@app.route('/streaming_gps',methods = ['GET'])
+def streaming_gps():
+    
+    with open('gps_st_2_3_4_2.geojson', 'r') as file:
+        geo_data = json.load(file)
+    
+    cords = []
+    for inner_dicts in geo_data["features"]:
+        cords.append(inner_dicts['geometry']['coordinates'])
+
+
 
 if __name__ == '__main__':
     app.run(port=8888,debug=True)
