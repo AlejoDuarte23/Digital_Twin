@@ -6,18 +6,43 @@
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
+<script src='https://unpkg.com/@turf/turf/turf.min.js'></script>
+
 <style>
 body { margin: 0; padding: 0; }
 #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
 .marker {
-  background-image: url('/static/models/truck.svg');
+  background-image: url('static/models/truckleft.svg');
   background-size: cover;
   width: 25px;
   height: 25px;
   border-radius: 50%;
   cursor: pointer;
-  color: #f7cf1f;
+  transition: transform 0.4s; /* Smooth rotation */
+}
+
+.custom-popup .mapboxgl-popup-content {
+    background-color: rgba(0, 0, 0, 0.7); /* Black transparent background */
+    color: white; /* White text */
+    border-radius: 5px; /* Rounded corners */
+}
+
+.custom-popup .mapboxgl-popup-close-button {
+    color: white; /* White close button */
+    display: none; /* Hide the close button */
+}
+
+.custom-popup h1, .custom-popup h2 {
+    margin: 0; /* Remove default margins */
+    padding: 5px; /* Add padding */
+}
+
+.custom-popup .green-dot {
+    color: green;
+    font-size: 20px;
+    margin-left: 5px;
+    vertical-align: middle;
 }
 
 </style>
@@ -26,67 +51,55 @@ body { margin: 0; padding: 0; }
 <div id="map"></div>
 
 <script>
-    /*
     mapboxgl.accessToken = 'pk.eyJ1IjoiYWxlam9kdWFydGUyMyIsImEiOiJja2wxMm1tMHUwYWdwMnd0NGI0emZrYTF5In0.2fceQ8K9H7KwH7tCSz_tWA';
     const map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/satellite-v9',
-        zoom: 0
+
     });
-    
+
+
+    function getImageForBearing(bearing) {
+    bearing = (bearing + 360) % 360; // Normalize bearing to 0-359 degrees
+    if (bearing >= 45 && bearing < 135) return 'static/models/truckrigh.svg';
+    if (bearing >= 135 && bearing < 225) return 'static/models/truckdow.svg';
+    if (bearing >= 225 && bearing < 315) return '/static/models/truckleft.svg';
+    return '/static/models/truckup.svg';
+}
+
+
+    const calculateBearing = (lat1, long1, lat2, long2) => {
+        const dLon = (long2 - long1);
+        const y = Math.sin(dLon) * Math.cos(lat2);
+        const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+        const brng = Math.atan2(y, x) * 180 / Math.PI;
+        return (brng + 360) % 360; // Normalize to 0-360 degrees
+    };
+
     map.on('load', async () => {
+        map.jumpTo({ 'center': [-72.63803, 11.05333], 'zoom': 12, 'bearing': -7.20, 'pitch': 47.50 });
         const eventSource = new EventSource("/stream-cords");
-        let coordinates = [];
-        let markers = [];
         
-        eventSource.onmessage = function(event) {
-            const coords = JSON.parse(event.data);
-            coordinates.push(coords);
-    
-            map.jumpTo({ 'center': coordinates[0], 'zoom': 14 });
-            map.setPitch(30);
-    
-            // Create a HTML element for the truck marker
-            const el = document.createElement('div');
-            el.className = 'marker';
-    
-            // Set the marker's coordinates and add it to the map
-            const marker = new mapboxgl.Marker(el).setLngLat(coords).addTo(map);
-            markers.push(marker);
-    
-            // Adjust the opacity of the markers based on their age
-            markers.forEach((m, index) => {
-                const opacity = (index + 1) / markers.length;
-                m.getElement().style.opacity = opacity;
-            });
-    
-            // Remove the oldest marker if there are more than 7 markers
-            if (markers.length > 3) {
-                markers.shift().remove();
-            }
-        };
-    });
-
-    */
-
-    mapboxgl.accessToken = 'pk.eyJ1IjoiYWxlam9kdWFydGUyMyIsImEiOiJja2wxMm1tMHUwYWdwMnd0NGI0emZrYTF5In0.2fceQ8K9H7KwH7tCSz_tWA';
-    const map = new mapboxgl.Map({
-        container: 'map',
-        style: 'mapbox://styles/mapbox/satellite-v9',
-
-    });
-    
-    map.on('load', async () => {
-        map.jumpTo({ 'center': [-72.63803, 11.05333], 'zoom': 12 ,'bearing': -7.20, 'pitch': 47.50});
-        const eventSource = new EventSource("/stream-cords");
         let markers = {
             truck_1: null,
             truck_2: null,
             truck_3: null
         };
-        
+
+        let popups = {
+            truck_1: null,
+            truck_2: null,
+            truck_3: null
+        };
+
+        let previousCoords = {
+            truck_1: null,
+            truck_2: null,
+            truck_3: null
+        };
+
         eventSource.onmessage = function(event) {
-            const coords = JSON.parse(event.data);
+            const coords = JSON.parse(event.data);  
             
             for (let truck in coords) {
                 if (markers[truck] === null) {
@@ -96,19 +109,57 @@ body { margin: 0; padding: 0; }
                     
                     // Set the marker's coordinates and add it to the map
                     markers[truck] = new mapboxgl.Marker(el).setLngLat(coords[truck]).addTo(map);
+                    // Initialize the popup for the marker
+                    popups[truck] = new mapboxgl.Popup({
+                        className: 'custom-popup',
+                        anchor: 'bottom', // This removes the white triangle by anchoring the popup from the bottom
+                        offset: [0, -10] // Adjust the offset values as needed
+                    }).setHTML("<h1>CAT 793D</h1><h2>Online<span class='green-dot'>●</span></h2>");
+
+                    el.addEventListener('mouseenter', () => {
+                        popups[truck].setLngLat(coords[truck]).addTo(map);
+                    });
+
+                    el.addEventListener('mouseleave', () => {
+                        // Remove the popup when the mouse leaves
+                        if (popups[truck]) {
+                            popups[truck].remove();
+                        }
+                    });
+
+                    // Store the initial coordinates
+                    previousCoords[truck] = coords[truck];
+                    
                 } else {
                     // Update the marker's coordinates
                     markers[truck].setLngLat(coords[truck]);
+
+                    /* Calculate the bearing
+                    const bearing = calculateBearing(
+                        previousCoords[truck][1], previousCoords[truck][0],
+                        coords[truck][1], coords[truck][0]
+                    );
+                    */
+
+                    const bearing = turf.bearing(previousCoords[truck], coords[truck])
+                    console.log(bearing)
+                    console.log(getImageForBearing(bearing))
+
+                    // Update the marker's bearing (rotation)
+                    markers[truck].getElement().style.backgroundImage = `url(${getImageForBearing(bearing)})`;
+
+                    // Update the popup's coordinates if it is open
+                    if (popups[truck] && popups[truck].isOpen()) {
+                        popups[truck].setLngLat(coords[truck]);
+                    }
+
+                    // Store the new coordinates
+                    previousCoords[truck] = coords[truck];
                 }
             }
-
-            // Center the map on the first truck's coordinates
-            //map.jumpTo({ 'center': coords.truck_1, 'zoom': 14 });
-            //map.setPitch(30);
         };
     });
-
-    </script>
+</script>
 
 </body>
 </html>
